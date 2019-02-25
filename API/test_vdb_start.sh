@@ -1,17 +1,16 @@
+#!/bin/bash
 
+#########################################################
+## Subroutines ...
 
+source ./jqJSON_subroutines.sh
 
-# Below Variables may change, make sure you have the proper values:
-ENGINEURL=landsharkengine
-export ENGINEURL
-USR=delphix_admin
-export USR
-PASS=landshark
-export PASS
+#########################################################
+## Parameter Initialization ...
 
+. ./delphix_engine.conf
 
-
-
+#########################################################
 
 
 #Below variables are fixed, no need to modify
@@ -19,47 +18,76 @@ BNAME=snapsyc-$(date +%Y-%m-%d-%H-%M-%S)
 export BNAME
 
 
-
+#########################################################
 
 ## Connect to the Delphix Engine
 echo
 echo
 echo "Create session"
-curl -s -X POST -k --data @- ${ENGINEURL}/resources/json/delphix/session \
-    -c ~/cookies.txt -H "Content-Type: application/json" <<EOF
+curl -s -X POST -k --data @- ${BaseURL}/session -c ~/cookies.txt -H "Content-Type: application/json" <<EOF
 {
     "type": "APISession",
     "version": {
         "type": "APIVersion",
         "major": 1,
         "minor": 9,
-        "micro": 0 
+        "micro": 0
     }
 }
 EOF
 echo
 echo
-echo "Logon as:" ${USR}/${PASS}
-curl -s -X POST -k --data @- ${ENGINEURL}/resources/json/delphix/login \
-    -b ~/cookies.txt -c "cookies.txt" -H "Content-Type: application/json" <<EOF1
-{
-    "type": "LoginRequest",
-    "username": "${USR}",
-    "password": "${PASS}"
-}
-EOF1
+echo "Authenticating on ${BaseURL}"
+echo
+RESULTS=$( RestSession "${DMUSER}" "${DMPASS}" "${BaseURL}" "${COOKIE}" "${CONTENT_TYPE}" )
+echo "Results: ${RESULTS}"
+if [ "${RESULTS}" != "OK" ]
+then
+   echo "Error: Exiting ..."
+   exit 1;
+fi
+echo
+echo "Session and Login Successful ..."
+
+#########################################################
+#
+# Command Line Arguments ...
+#
+SOURCE_SID=$1
+export SOURCE_SID
+
+echo "Source: ${SOURCE_SID}"
+
+#########################################################
 
 
-
-
-# Create Bookmark on Template
+# Start VDB
 echo
 echo
-echo
-echo
-curl -s -X  POST -k --data @- ${ENGINEURL}/resources/json/delphix/source/ORACLE_VIRTUAL_SOURCE-24/start \
+STATUS=`curl -s -X  POST -k --data @- ${BaseURL}/source/ORACLE_VIRTUAL_SOURCE-24/start \
  -b ~/cookies.txt -H "Content-Type: application/json" <<EOF2
 {
     "type": "OracleStartParameters"
 }
 EOF2
+`
+echo
+echo
+
+#########################################################
+#
+# Get Job Number ...
+#
+JOB=$( jqParse "${STATUS}" "job" )
+echo "Job: ${JOB}"
+
+jqJobStatus "${JOB}"            # Job Status Function ...
+
+############## E O F ####################################
+echo "Done ... VDB Started!"
+echo " "
+exit 0;
+
+
+
+
